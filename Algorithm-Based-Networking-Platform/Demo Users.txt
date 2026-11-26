@@ -1,0 +1,13 @@
+Default Demo Login Credentials
+
+Admin Accounts:
+
+Gavin Paul P: gavin@srmist.edu.in / password123
+Rohith Kumar: rohith@vtsenterprises.com / password123
+
+Regular Member Accounts:
+
+Ananya Sharma: ananya.ai@srmist.edu.in / password123
+Karthik Rajan: karthik.dev@gmail.com / password123
+Meera Nair: meera.design@gmail.com / password123
+Vikram Aditya: vikram.ds@gmail.com / password123

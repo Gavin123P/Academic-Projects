@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kindred — Connect Over Shared Passions</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+    .app-shell {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+  <div id="app" class="app-shell p-4 md:p-6"></div>
+
+  <!-- Soft-Ban / Ban Modal for Admin -->
+  <div id="mod-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+      <h3 id="mod-modal-title" class="text-lg font-extrabold text-slate-900 mb-1">Moderate Member</h3>
+      <p id="mod-modal-sub" class="text-xs text-slate-500 mb-4"></p>
+
+      <div id="mod-duration-wrap" class="mb-4">
+        <label class="block text-xs font-bold text-slate-700 mb-1.5">Suspension Duration</label>
+        <select id="mod-duration" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl">
+          <option value="15">15 Minutes</option>
+          <option value="60" selected>1 Hour</option>
+          <option value="1440">24 Hours (1 Day)</option>
+          <option value="10080">7 Days (1 Week)</option>
+        </select>
+      </div>
+
+      <div class="mb-5">
+        <label class="block text-xs font-bold text-slate-700 mb-1.5">Reason / Note for Member</label>
+        <input id="mod-reason" type="text" placeholder="e.g., Please keep conversations respectful." class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button onclick="closeModModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700">Cancel</button>
+        <button id="mod-confirm-btn" onclick="confirmModAction()" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold">Apply Restriction</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      currentUser: null,
+      authMode: 'login',
+      demoUsers: [],
+      catalogTopics: [],
+      selectedTopics: [],
+      clusterTheme: 'General Community',
+      activeTab: 'matches', // 'topics' | 'matches' | 'chat' | 'admin'
+      adminSubTab: 'users', // 'users' | 'content' | 'tools'
+      matches: [],
+      activeChatMatch: null,
+      messages: [],
+      socketConnected: false,
+      adminOverview: null,
+      testLogResult: null,
+      labTopicA: 'AI, ML',
+      labTopicB: 'Artificial Intelligence, Machine Learning',
+      labResult: null,
+      bannerMsg: '',
+      authError: '',
+      modTargetUser: null,
+      modActionType: null // 'soft_ban' | 'ban'
+    };
+
+    let socket = null;
+
+    function isAdmin() {
+      return state.currentUser && state.currentUser.role === 'admin';
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong');
+      return data;
+    }
+
+    async function init() {
+      try {
+        const [users, topicsData] = await Promise.all([
+          api('/api/users'),
+          api('/api/topics')
+        ]);
+        state.demoUsers = users || [];
+        state.catalogTopics = topicsData.catalog || [];
+      } catch (e) {
+        console.error(e);
+      }
+      render();
+    }
+
+    function connectSocket() {
+      if (socket) socket.disconnect();
+      if (typeof io === 'undefined') return;
+      socket = io();
+      socket.on('connect', () => {
+        state.socketConnected = true;
+        render();
+      });
+      socket.on('disconnect', () => {
+        state.socketConnected = false;
+        render();
+      });
+      socket.on('newMessage', (msg) => {
+        if (!state.messages.some(m => String(m._id) === String(msg._id))) {
+          state.messages.push(msg);
+          render();
+          scrollChatToBottom();
+        }
+      });
+      socket.on('userModerated', (payload) => {
+        if (state.currentUser && String(state.currentUser._id) === String(payload.userId)) {
+          if (payload.accountStatus === 'banned' || payload.accountStatus === 'soft_banned') {
+            const msg = payload.accountStatus === 'banned'
+              ? `Your account has been suspended by an administrator. ${payload.banReason || ''}`
+              : `Your account has been temporarily restricted until ${new Date(payload.softBanUntil).toLocaleString()}. ${payload.banReason || ''}`;
+            state.currentUser = null;
+            state.authError = msg;
+            init();
+          } else {
+            state.currentUser.role = payload.role || state.currentUser.role;
+            render();
+          }
+        }
+      });
+      socket.on('userDeleted', (payload) => {
+        if (state.currentUser && String(state.currentUser._id) === String(payload.userId)) {
+          state.currentUser = null;
+          state.authError = 'Your account has been removed by an administrator.';
+          init();
+        }
+      });
+    }
+
+    function scrollChatToBottom() {
+      setTimeout(() => {
+        const feed = document.getElementById('chat-feed');
+        if (feed) feed.scrollTop = feed.scrollHeight;
+      }, 50);
+    }
+
+    async function loginWithCredentials(email, password) {
+      state.authError = '';
+      try {
+        const res = await api('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+        state.currentUser = res.user;
+        state.selectedTopics = [...(res.user.topics || [])];
+        state.clusterTheme = res.user.clusterTheme || 'Community';
+        connectSocket();
+        await loadMatches();
+        state.activeTab = 'matches';
+        render();
+      } catch (err) {
+        state.authError = err.message;
+        render();
+      }
+    }
+
+    async function registerUser(username, email, password, bio) {
+      state.authError = '';
+      try {
+        const res = await api('/api/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            username,
+            email,
+            password,
+            bio,
+            topics: ['Artificial Intelligence', 'Photography']
+          })
+        });
+        state.currentUser = res.user;
+        state.selectedTopics = [...(res.user.topics || [])];
+        state.clusterTheme = res.user.clusterTheme || 'Community';
+        connectSocket();
+        await init();
+        await loadMatches();
+        state.activeTab = 'topics';
+        render();
+      } catch (err) {
+        state.authError = err.message;
+        render();
+      }
+    }
+
+    async function loadMatches() {
+      if (!state.currentUser) return;
+      try {
+        const data = await api(`/api/matches/${state.currentUser._id}`);
+        state.matches = data.recommendations || [];
+        state.clusterTheme = data.clusterTheme || 'Community';
+        if (!state.activeChatMatch && state.matches.length > 0) {
+          state.activeChatMatch = state.matches[0];
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadAdminOverview() {
+      if (!isAdmin()) return;
+      try {
+        state.adminOverview = await api('/api/admin/overview');
+        state.demoUsers = state.adminOverview.users || [];
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function toggleTopic(topicName) {
+      state.bannerMsg = '';
+      if (state.selectedTopics.includes(topicName)) {
+        state.selectedTopics = state.selectedTopics.filter(t => t !== topicName);
+      } else {
+        state.selectedTopics.push(topicName);
+      }
+      render();
+    }
+
+    function addCustomTopic() {
+      const input = document.getElementById('custom-topic-input');
+      if (!input || !input.value.trim()) return;
+      const val = input.value.trim();
+      if (!state.selectedTopics.includes(val)) {
+        state.selectedTopics.push(val);
+      }
+      input.value = '';
+      render();
+    }
+
+    async function saveTopics() {
+      if (!state.currentUser) return;
+      try {
+        const res = await api('/api/topics', {
+          method: 'POST',
+          body: JSON.stringify({
+            userId: state.currentUser._id,
+            topics: state.selectedTopics
+          })
+        });
+        state.currentUser = res.user;
+        state.matches = res.matches || [];
+        state.clusterTheme = res.nlpAnalysis?.clusterTheme || state.clusterTheme;
+        state.bannerMsg = '✨ Your interests have been saved and your matches are updated!';
+        render();
+      } catch (err) {
+        state.bannerMsg = '⚠️ ' + err.message;
+        render();
+      }
+    }
+
+    async function openChat(matchIndex) {
+      const matchItem = state.matches[matchIndex];
+      if (!matchItem) return;
+      state.activeChatMatch = matchItem;
+      state.activeTab = 'chat';
+      if (socket && matchItem.matchId) {
+        socket.emit('joinMatch', matchItem.matchId);
+      }
+      try {
+        state.messages = await api(`/api/messages/${matchItem.matchId}`);
+      } catch (_) {
+        state.messages = [];
+      }
+      render();
+      scrollChatToBottom();
+    }
+
+    async function sendChatMessage(customText) {
+      const inputEl = document.getElementById('chat-input');
+      const text = customText || (inputEl ? inputEl.value : '');
+      if (!text || !text.trim() || !state.currentUser || !state.activeChatMatch) return;
+      if (!customText && inputEl) inputEl.value = '';
+
+      const payload = {
+        matchId: state.activeChatMatch.matchId,
+        senderId: state.currentUser._id,
+        senderName: state.currentUser.username,
+        receiverId: state.activeChatMatch.user._id,
+        message: text.trim()
+      };
+
+      try {
+        const saved = await api('/api/messages', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        if (!state.messages.some(m => String(m._id) === String(saved._id))) {
+          state.messages.push(saved);
+        }
+        render();
+        scrollChatToBottom();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    // ========================================================================
+    // ADMIN MODERATION ACTIONS
+    // ========================================================================
+    function openModModal(userId, username, actionType) {
+      state.modTargetUser = { _id: userId, username };
+      state.modActionType = actionType;
+      const modal = document.getElementById('mod-modal');
+      const title = document.getElementById('mod-modal-title');
+      const sub = document.getElementById('mod-modal-sub');
+      const durWrap = document.getElementById('mod-duration-wrap');
+      const confirmBtn = document.getElementById('mod-confirm-btn');
+      document.getElementById('mod-reason').value = '';
+
+      if (actionType === 'soft_ban') {
+        title.textContent = `Soft-Ban ${username}`;
+        sub.textContent = 'Temporarily restrict this member from signing in, updating interests, or sending messages.';
+        durWrap.classList.remove('hidden');
+        confirmBtn.textContent = 'Apply Temporary Soft-Ban';
+        confirmBtn.className = 'px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold';
+      } else {
+        title.textContent = `Permanently Ban ${username}`;
+        sub.textContent = 'Block this account from accessing the platform and hide them from member discovery.';
+        durWrap.classList.add('hidden');
+        confirmBtn.textContent = 'Confirm Permanent Ban';
+        confirmBtn.className = 'px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold';
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeModModal() {
+      const modal = document.getElementById('mod-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      state.modTargetUser = null;
+      state.modActionType = null;
+    }
+
+    async function confirmModAction() {
+      if (!state.modTargetUser || !state.modActionType) return;
+      const durationMinutes = Number(document.getElementById('mod-duration').value) || 60;
+      const reason = document.getElementById('mod-reason').value.trim();
+
+      try {
+        await api(`/api/admin/users/${state.modTargetUser._id}/moderate`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            action: state.modActionType,
+            durationMinutes,
+            reason
+          })
+        });
+        closeModModal();
+        await loadAdminOverview();
+        await loadMatches();
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function unbanUser(userId) {
+      try {
+        await api(`/api/admin/users/${userId}/moderate`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action: 'unban' })
+        });
+        await loadAdminOverview();
+        await loadMatches();
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function toggleUserRole(userId, currentRole) {
+      const nextRole = currentRole === 'admin' ? 'user' : 'admin';
+      try {
+        await api(`/api/admin/users/${userId}/moderate`, {
+          method: 'PATCH',
+          body: JSON.stringify({ role: nextRole })
+        });
+        await loadAdminOverview();
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function deleteUserAccount(userId, username) {
+      if (!confirm(`Are you sure you want to permanently delete ${username} and all their messages?`)) return;
+      try {
+        await api(`/api/admin/users/${userId}`, { method: 'DELETE' });
+        await loadAdminOverview();
+        await loadMatches();
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function deleteChatMessageAdmin(msgId) {
+      try {
+        await api(`/api/admin/messages/${msgId}`, { method: 'DELETE' });
+        await loadAdminOverview();
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function runSimilarityLab() {
+      const a = document.getElementById('lab-a').value;
+      const b = document.getElementById('lab-b').value;
+      state.labTopicA = a;
+      state.labTopicB = b;
+      try {
+        state.labResult = await api('/api/nlp/similarity', {
+          method: 'POST',
+          body: JSON.stringify({ user_a_topics: a, user_b_topics: b })
+        });
+        render();
+      } catch (e) {}
+    }
+
+    async function runSystemTests() {
+      try {
+        state.testLogResult = await api('/api/evaluation/run-tests', { method: 'POST' });
+        await loadAdminOverview();
+        render();
+      } catch (e) {}
+    }
+
+    async function saveMongoAtlasUri() {
+      const el = document.getElementById('mongo-uri-input');
+      if (!el || !el.value.trim()) return;
+      try {
+        const res = await api('/api/config/mongodb', {
+          method: 'POST',
+          body: JSON.stringify({ mongoUri: el.value.trim() })
+        });
+        alert(res.database.status);
+        await loadAdminOverview();
+        render();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function renderStatusBadge(u) {
+      if (u.accountStatus === 'banned') {
+        return `<span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold">Banned</span>`;
+      }
+      if (u.accountStatus === 'soft_banned') {
+        const until = u.softBanUntil ? new Date(u.softBanUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        return `<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">Soft-Banned ${until ? '(until ' + until + ')' : ''}</span>`;
+      }
+      return `<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">Active</span>`;
+    }
+
+    function render() {
+      const root = document.getElementById('app');
+
+      // ======================================================================
+      // UNAUTHENTICATED SCREEN (Sign In / Create Account)
+      // ======================================================================
+      if (!state.currentUser) {
+        root.innerHTML = `
+          <div class="max-w-lg mx-auto bg-white rounded-3xl shadow-sm border border-slate-200 p-8 mt-6">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-3 h-3 rounded-full bg-indigo-600"></span>
+              <span class="text-xs font-extrabold tracking-wider text-indigo-600 uppercase">Kindred Community</span>
+            </div>
+            <h1 class="text-2xl font-extrabold text-slate-900 mb-2">Meet people who share your passions.</h1>
+            <p class="text-sm text-slate-500 mb-6">Skip the endless feed scrolling. Pick the topics you care about and start real conversations with like-minded people.</p>
+
+            <div class="grid grid-cols-2 bg-slate-100 p-1 rounded-xl mb-5">
+              <button onclick="state.authMode='login'; state.authError=''; render()" class="py-2.5 text-xs font-bold rounded-lg transition ${state.authMode === 'login' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}">Sign In</button>
+              <button onclick="state.authMode='register'; state.authError=''; render()" class="py-2.5 text-xs font-bold rounded-lg transition ${state.authMode === 'register' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}">Create Account</button>
+            </div>
+
+            ${state.authMode === 'register' ? `
+              <div class="mb-3">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Your Name</label>
+                <input id="auth-username" type="text" placeholder="e.g. Alex Rivera" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+              </div>
+            ` : ''}
+
+            <div class="mb-3">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+              <input id="auth-email" type="email" value="gavin@srmist.edu.in" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+            </div>
+
+            <div class="mb-4">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+              <input id="auth-password" type="password" value="password123" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+            </div>
+
+            ${state.authMode === 'register' ? `
+              <div class="mb-4">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">About You</label>
+                <input id="auth-bio" type="text" placeholder="Tell others what you love talking about..." class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+              </div>
+            ` : ''}
+
+            ${state.authError ? `<div class="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700 mb-4">${state.authError}</div>` : ''}
+
+            <button onclick="handleAuthClick()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition">
+              ${state.authMode === 'login' ? 'Sign In' : 'Join Kindred'}
+            </button>
+
+            <div class="mt-7 pt-5 border-t border-slate-200">
+              <div class="text-xs font-bold text-slate-600 mb-3">Quick Switch Accounts (For Testing Admin vs Member Views)</div>
+              <div class="space-y-2">
+                ${state.demoUsers.map(u => `
+                  <button onclick="loginWithCredentials('${u.email}', 'password123')" class="w-full flex items-center justify-between gap-3 p-2.5 rounded-xl border border-slate-200 hover:bg-indigo-50/50 text-left transition">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                      <div class="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0" style="background:${u.avatarColor || '#4F46E5'}">${u.username.charAt(0)}</div>
+                      <div class="overflow-hidden">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-xs font-bold text-slate-900">${u.username}</span>
+                          ${u.role === 'admin'
+                            ? `<span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-extrabold">🛡 Admin</span>`
+                            : `<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-semibold">Member</span>`
+                          }
+                          ${u.accountStatus !== 'active' ? renderStatusBadge(u) : ''}
+                        </div>
+                        <div class="text-[11px] text-slate-500 truncate">${(u.topics || []).join(' • ')}</div>
+                      </div>
+                    </div>
+                    <span class="text-xs font-bold text-indigo-600 shrink-0">Sign in →</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // ======================================================================
+      // AUTHENTICATED HEADER & NAVIGATION
+      // ======================================================================
+      const adminUser = isAdmin();
+      root.innerHTML = `
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 flex items-center justify-between shadow-xs">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-full flex items-center justify-center text-white font-extrabold text-base" style="background:${state.currentUser.avatarColor || '#4F46E5'}">
+              ${state.currentUser.username.charAt(0)}
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-extrabold text-slate-900 text-base">${state.currentUser.username}</span>
+                ${adminUser
+                  ? `<span class="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-extrabold">🛡 Admin</span>`
+                  : `<span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold">Member</span>`
+                }
+              </div>
+              <div class="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                <span class="w-2 h-2 rounded-full ${state.socketConnected ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
+                <span>${state.socketConnected ? 'Online' : 'Connecting...'} • Community: <strong class="text-indigo-600">${state.clusterTheme}</strong></span>
+              </div>
+            </div>
+          </div>
+          <button onclick="state.currentUser=null; init()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700">Sign Out</button>
+        </div>
+
+        <!-- Role-Based Navigation Bar -->
+        <div class="grid ${adminUser ? 'grid-cols-4' : 'grid-cols-3'} gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 mb-5 shadow-xs">
+          <button onclick="state.activeTab='topics'; render()" class="py-2.5 px-3 rounded-xl text-xs font-bold transition ${state.activeTab === 'topics' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}">
+            My Interests
+          </button>
+          <button onclick="state.activeTab='matches'; loadMatches().then(render)" class="py-2.5 px-3 rounded-xl text-xs font-bold transition ${state.activeTab === 'matches' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}">
+            Discover (${state.matches.length})
+          </button>
+          <button onclick="state.activeTab='chat'; if(!state.activeChatMatch && state.matches.length){openChat(0)}else{render()}" class="py-2.5 px-3 rounded-xl text-xs font-bold transition ${state.activeTab === 'chat' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}">
+            Messages
+          </button>
+          ${adminUser ? `
+            <button onclick="state.activeTab='admin'; loadAdminOverview().then(render)" class="py-2.5 px-3 rounded-xl text-xs font-bold transition ${state.activeTab === 'admin' ? 'bg-indigo-600 text-white' : 'text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100'}">
+              🛡 Admin Console
+            </button>
+          ` : ''}
+        </div>
+
+        ${renderActiveScreen()}
+      `;
+    }
+
+    function renderActiveScreen() {
+      // ======================================================================
+      // TAB 1: MY INTERESTS (Natural, Friendly Topic Dashboard)
+      // ======================================================================
+      if (state.activeTab === 'topics') {
+        return `
+          <div class="space-y-5">
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+              <h2 class="text-lg font-extrabold text-slate-900 mb-1">What are you passionate about?</h2>
+              <p class="text-xs text-slate-500 mb-4">Add your favorite topics or pick from the list below. We use your interests to introduce you to people who care about the same things.</p>
+
+              <div class="flex gap-2 mb-5">
+                <input id="custom-topic-input" onkeydown="if(event.key==='Enter')addCustomTopic()" type="text" placeholder="Add a custom interest (e.g., Indie Games, Astrophotography, AI)..." class="flex-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+                <button onclick="addCustomTopic()" class="px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs rounded-xl hover:bg-indigo-100">+ Add Interest</button>
+              </div>
+
+              <div class="text-xs font-bold text-slate-700 mb-2">Your Selected Interests (${state.selectedTopics.length})</div>
+              <div class="flex flex-wrap gap-2 mb-5">
+                ${state.selectedTopics.length === 0
+                  ? `<span class="text-xs text-slate-400">No interests selected yet. Pick some below!</span>`
+                  : state.selectedTopics.map(t => `
+                    <button onclick="toggleTopic('${t.replace(/'/g, "\\'")}')" class="px-3.5 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-indigo-700 transition">
+                      <span>${t}</span><span class="opacity-75">✕</span>
+                    </button>
+                  `).join('')}
+              </div>
+
+              ${state.bannerMsg ? `<div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold mb-4">${state.bannerMsg}</div>` : ''}
+
+              <button onclick="saveTopics()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition">
+                Save My Interests & Update Matches
+              </button>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+              <h3 class="text-base font-extrabold text-slate-900 mb-1">Explore Popular Topics</h3>
+              <p class="text-xs text-slate-500 mb-4">Tap any topic to add or remove it from your profile.</p>
+              <div class="flex flex-wrap gap-2">
+                ${state.catalogTopics.map(item => {
+                  const sel = state.selectedTopics.includes(item.topic_name);
+                  return `
+                    <button onclick="toggleTopic('${item.topic_name.replace(/'/g, "\\'")}')" class="px-3.5 py-2 rounded-full text-xs font-semibold border transition ${sel ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'}">
+                      ${sel ? '✓ ' : '+ '}${item.topic_name} <span class="opacity-70">• ${item.category}</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // ======================================================================
+      // TAB 2: DISCOVER PEOPLE (Clean Match Discovery — No Machine Speak)
+      // ======================================================================
+      if (state.activeTab === 'matches') {
+        return `
+          <div class="space-y-5">
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h2 class="text-lg font-extrabold text-slate-900">People You Might Click With</h2>
+                  <p class="text-xs text-slate-500">Based on your shared interests in <strong>${(state.currentUser.topics || []).join(', ')}</strong></p>
+                </div>
+                <button onclick="loadMatches().then(render)" class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl transition">↻ Refresh</button>
+              </div>
+
+              <div class="space-y-3.5">
+                ${state.matches.map((m, idx) => `
+                  <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col gap-3">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-extrabold text-base shrink-0" style="background:${m.user.avatarColor || '#0EA5E9'}">
+                          ${m.user.username.charAt(0)}
+                        </div>
+                        <div>
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-extrabold text-slate-900 text-sm">${m.user.username}</span>
+                            <span class="px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 text-[11px] font-bold">${m.clusterTheme}</span>
+                            ${isAdmin() && m.user.accountStatus !== 'active' ? renderStatusBadge(m.user) : ''}
+                          </div>
+                          <p class="text-xs text-slate-600 mt-1">${m.user.bio}</p>
+                        </div>
+                      </div>
+
+                      <div class="px-3.5 py-2 rounded-xl text-center shrink-0 ${m.similarityScore >= 0.7 ? 'bg-emerald-100 border border-emerald-300 text-emerald-900' : m.similarityScore >= 0.35 ? 'bg-amber-100 border border-amber-300 text-amber-900' : 'bg-slate-200 text-slate-700'}">
+                        <div class="text-base font-extrabold">${m.matchPercentage}%</div>
+                        <div class="text-[10px] font-semibold">Match</div>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span class="text-xs font-bold text-slate-600 mr-1">Interests:</span>
+                      ${(m.user.topics || []).map(t => `<span class="px-2.5 py-1 bg-white border border-slate-200 rounded-full text-[11px] font-semibold text-slate-700">${t}</span>`).join('')}
+                    </div>
+
+                    ${m.sharedTokens && m.sharedTokens.length > 0 ? `
+                      <div class="px-3 py-1.5 rounded-xl bg-indigo-50/80 border border-indigo-100 text-xs font-semibold text-indigo-800">
+                        ✨ In common: ${m.sharedTokens.join(', ')}
+                      </div>
+                    ` : ''}
+
+                    <div class="flex items-center justify-end pt-2 border-t border-slate-200/80 gap-2">
+                      ${isAdmin() ? `
+                        <button onclick="openModModal('${m.user._id}', '${m.user.username.replace(/'/g, "\\'")}', 'soft_ban')" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[11px] rounded-lg">Soft-Ban</button>
+                      ` : ''}
+                      <button onclick="openChat(${idx})" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition">
+                        💬 Message ${m.user.username.split(' ')[0]}
+                      </button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // ======================================================================
+      // TAB 3: MESSAGES (Natural Real-Time Chat)
+      // ======================================================================
+      if (state.activeTab === 'chat') {
+        const active = state.activeChatMatch;
+        return `
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="flex gap-2 p-3 bg-slate-50 border-b border-slate-200 overflow-x-auto">
+              ${state.matches.map((m, idx) => {
+                const isSel = active && String(active.user._id) === String(m.user._id);
+                return `
+                  <button onclick="openChat(${idx})" class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 border transition ${isSel ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}">
+                    ${m.user.username} • ${m.matchPercentage}%
+                  </button>
+                `;
+              }).join('')}
+            </div>
+
+            ${active ? `
+              <div class="p-4 bg-white border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs" style="background:${active.user.avatarColor || '#0EA5E9'}">
+                    ${active.user.username.charAt(0)}
+                  </div>
+                  <div>
+                    <div class="font-extrabold text-sm text-slate-900">${active.user.username}</div>
+                    <div class="text-[11px] text-slate-500">${active.matchPercentage}% Compatibility • ${(active.user.topics || []).slice(0, 3).join(', ')}</div>
+                  </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online
+                </span>
+              </div>
+
+              <div class="px-4 py-2 bg-indigo-50/60 border-b border-indigo-100 flex items-center gap-2 overflow-x-auto">
+                <span class="text-[11px] font-bold text-indigo-800">Conversation Starters:</span>
+                <button onclick="sendChatMessage('Hey ${active.user.username.split(' ')[0]}! How is your week going?')" class="px-3 py-1 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-full text-[11px] font-semibold text-indigo-700 transition">👋 Say hello!</button>
+                <button onclick="sendChatMessage('Hi ${active.user.username.split(' ')[0]}! Saw we both enjoy ${(active.user.topics || ['similar topics'])[0]}—what got you into it?')" class="px-3 py-1 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-full text-[11px] font-semibold text-indigo-700 transition">✨ Ask about ${(active.user.topics || ['interests'])[0]}</button>
+              </div>
+
+              <div id="chat-feed" class="p-4 h-80 overflow-y-auto space-y-3 bg-slate-50/40">
+                ${state.messages.length === 0 ? `
+                  <div class="text-center text-xs text-slate-400 py-16">No messages yet. Say hello to start the conversation!</div>
+                ` : state.messages.map(msg => {
+                  const isMe = String(msg.senderId) === String(state.currentUser._id);
+                  return `
+                    <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
+                      <div class="max-w-md px-4 py-2.5 rounded-2xl ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-900 rounded-bl-none'}">
+                        <div class="text-[10px] font-bold ${isMe ? 'text-indigo-200' : 'text-slate-400'} mb-0.5">${isMe ? 'You' : (msg.senderName || active.user.username)}</div>
+                        <div class="text-sm">${msg.message || msg.content}</div>
+                        <div class="text-[10px] ${isMe ? 'text-indigo-200' : 'text-slate-400'} text-right mt-1">${msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}</div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+              <div class="p-3 bg-white border-t border-slate-200 flex gap-2">
+                <input id="chat-input" onkeydown="if(event.key==='Enter')sendChatMessage()" type="text" placeholder="Write a message..." class="flex-1 px-4 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+                <button onclick="sendChatMessage()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition">Send</button>
+              </div>
+            ` : `<div class="p-8 text-center text-sm text-slate-500">Pick someone from your Discover tab to start chatting.</div>`}
+          </div>
+        `;
+      }
+
+      // ======================================================================
+      // TAB 4: ADMIN CONSOLE (Visible ONLY to Admins)
+      // ======================================================================
+      if (state.activeTab === 'admin' && isAdmin()) {
+        const ov = state.adminOverview;
+        const usersList = ov ? ov.users : state.demoUsers;
+
+        return `
+          <div class="space-y-5">
+            <!-- Admin Stats Overview -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+              <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <h2 class="text-lg font-extrabold text-slate-900">🛡 Admin Control Center</h2>
+                  <p class="text-xs text-slate-500">Manage members, enforce soft-bans or permanent bans, moderate messages, and inspect platform health.</p>
+                </div>
+                <div class="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+                  <button onclick="state.adminSubTab='users'; render()" class="px-3 py-1.5 rounded-lg text-xs font-bold ${state.adminSubTab === 'users' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}">Members & Bans</button>
+                  <button onclick="state.adminSubTab='content'; render()" class="px-3 py-1.5 rounded-lg text-xs font-bold ${state.adminSubTab === 'content' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}">Chat Moderation</button>
+                  <button onclick="state.adminSubTab='tools'; render()" class="px-3 py-1.5 rounded-lg text-xs font-bold ${state.adminSubTab === 'tools' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}">Matching Lab & DB</button>
+                </div>
+              </div>
+
+              ${ov ? `
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                    <div class="text-2xl font-extrabold text-indigo-600">${ov.stats.usersCount}</div>
+                    <div class="text-xs font-semibold text-slate-500 mt-1">Total Members</div>
+                  </div>
+                  <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                    <div class="text-2xl font-extrabold text-indigo-600">${ov.stats.matchesCount}</div>
+                    <div class="text-xs font-semibold text-slate-500 mt-1">Active Connections</div>
+                  </div>
+                  <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                    <div class="text-2xl font-extrabold text-indigo-600">${ov.stats.messagesCount}</div>
+                    <div class="text-xs font-semibold text-slate-500 mt-1">Messages Sent</div>
+                  </div>
+                  <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                    <div class="text-2xl font-extrabold text-emerald-600">${ov.avgResponseTimeMs} ms</div>
+                    <div class="text-xs font-semibold text-slate-500 mt-1">Server Response</div>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+
+            ${state.adminSubTab === 'users' ? `
+              <!-- Member Directory & Moderation Table -->
+              <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+                <h3 class="text-base font-extrabold text-slate-900 mb-1">Member Directory & Moderation</h3>
+                <p class="text-xs text-slate-500 mb-4">Promote/demote admins, apply temporary soft-bans, permanently ban accounts, or delete users from the database.</p>
+
+                <div class="space-y-3">
+                  ${usersList.map(u => {
+                    const isSelf = String(u._id) === String(state.currentUser._id);
+                    return `
+                      <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div class="flex items-start gap-3">
+                          <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0" style="background:${u.avatarColor || '#4F46E5'}">
+                            ${u.username.charAt(0)}
+                          </div>
+                          <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                              <span class="font-extrabold text-sm text-slate-900">${u.username}</span>
+                              <span class="text-xs text-slate-400">${u.email}</span>
+                              ${u.role === 'admin'
+                                ? `<span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-extrabold">🛡 Admin</span>`
+                                : `<span class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-semibold">Member</span>`
+                              }
+                              ${renderStatusBadge(u)}
+                            </div>
+                            ${u.banReason ? `<div class="text-[11px] text-amber-700 font-semibold mt-1">Note: ${u.banReason}</div>` : ''}
+                            <div class="text-[11px] text-slate-500 mt-1">Interests: ${(u.topics || []).join(', ') || 'None'}</div>
+                          </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2 shrink-0">
+                          ${!isSelf ? `
+                            <button onclick="toggleUserRole('${u._id}', '${u.role}')" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px]">
+                              ${u.role === 'admin' ? 'Make Member' : 'Make Admin'}
+                            </button>
+
+                            ${u.accountStatus === 'active' ? `
+                              <button onclick="openModModal('${u._id}', '${u.username.replace(/'/g, "\\'")}', 'soft_ban')" class="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[11px]">
+                                ⏳ Soft-Ban
+                              </button>
+                              <button onclick="openModModal('${u._id}', '${u.username.replace(/'/g, "\\'")}', 'ban')" class="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-[11px]">
+                                🚫 Ban
+                              </button>
+                            ` : `
+                              <button onclick="unbanUser('${u._id}')" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px]">
+                                ✓ Lift Ban / Restore
+                              </button>
+                            `}
+
+                            <button onclick="deleteUserAccount('${u._id}', '${u.username.replace(/'/g, "\\'")}')" class="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-red-600 hover:text-white text-slate-700 font-bold text-[11px] transition">
+                              🗑 Delete
+                            </button>
+                          ` : `<span class="text-xs font-semibold text-slate-400 italic">Your Account</span>`}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${state.adminSubTab === 'content' ? `
+              <!-- Chat Messages Moderation -->
+              <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+                <h3 class="text-base font-extrabold text-slate-900 mb-1">Recent Conversations Log</h3>
+                <p class="text-xs text-slate-500 mb-4">Admins can review and remove inappropriate messages across the platform.</p>
+                <div class="space-y-2.5">
+                  ${(ov?.recentMessages || []).length === 0 ? `<div class="text-xs text-slate-400">No messages recorded yet.</div>` : (ov?.recentMessages || []).map(msg => `
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                      <div>
+                        <div class="text-xs font-bold text-slate-800">${msg.senderName || msg.senderId} <span class="text-slate-400 font-normal">• ${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''}</span></div>
+                        <div class="text-xs text-slate-600 mt-0.5">${msg.message || msg.content}</div>
+                      </div>
+                      <button onclick="deleteChatMessageAdmin('${msg._id}')" class="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 font-bold text-[11px] shrink-0">Delete</button>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${state.adminSubTab === 'tools' ? `
+              <!-- Admin Match Simulator, Diagnostics & Database Connection -->
+              <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+                <h3 class="text-base font-extrabold text-slate-900 mb-1">🔬 Admin Match & Semantic Similarity Sandbox</h3>
+                <p class="text-xs text-slate-500 mb-4">Test how the matching engine scores any two sets of interests (including synonyms like "AI" vs "Artificial Intelligence").</p>
+                <div class="grid md:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">First Interest Set</label>
+                    <input id="lab-a" type="text" value="${state.labTopicA}" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Second Interest Set</label>
+                    <input id="lab-b" type="text" value="${state.labTopicB}" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+                  </div>
+                </div>
+                <button onclick="runSimilarityLab()" class="px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs rounded-xl hover:bg-indigo-100">
+                  Test Compatibility Score
+                </button>
+
+                ${state.labResult ? `
+                  <div class="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                    <div class="font-extrabold text-sm text-indigo-700">Compatibility Score: ${Math.round(state.labResult.similarityScore * 100)}% (${state.labResult.similarityScore})</div>
+                    <div><strong>Normalized Keywords:</strong> ${(state.labResult.sharedTokens || []).join(', ') || 'None'}</div>
+                  </div>
+                ` : ''}
+              </div>
+
+              <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 class="text-base font-extrabold text-slate-900">Automated System Health Checks</h3>
+                    <p class="text-xs text-slate-500">Verify registration, matching accuracy, semantic synonym recognition, and live messaging.</p>
+                  </div>
+                  <button onclick="runSystemTests()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl">
+                    ▶ Run Health Checks
+                  </button>
+                </div>
+
+                ${state.testLogResult ? `
+                  <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-left text-xs">
+                      <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                        <tr>
+                          <th class="p-3">Check</th>
+                          <th class="p-3">Feature</th>
+                          <th class="p-3">Sample Input</th>
+                          <th class="p-3">Result</th>
+                          <th class="p-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-200">
+                        ${state.testLogResult.testLog.map(r => `
+                          <tr>
+                            <td class="p-3 font-bold">${r.testCaseId}</td>
+                            <td class="p-3">${r.requirement}</td>
+                            <td class="p-3 font-mono text-[11px]">${r.input}</td>
+                            <td class="p-3 font-semibold text-indigo-700">${r.actualOutput}</td>
+                            <td class="p-3"><span class="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 font-bold">${r.result}</span></td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                ` : ''}
+              </div>
+
+              <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+                <h3 class="text-base font-extrabold text-slate-900 mb-1">🗄️ Database Connection (Admin Only)</h3>
+                <p class="text-xs text-slate-500 mb-3">Status: <strong class="text-emerald-700">${ov ? ov.database.status : 'Connected to MongoDB Atlas'}</strong></p>
+                <div class="flex gap-2">
+                  <input id="mongo-uri-input" type="text" placeholder="mongodb+srv://..." class="flex-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl" />
+                  <button onclick="saveMongoAtlasUri()" class="px-4 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700">Update URI</button>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      return '';
+    }
+
+    function handleAuthClick() {
+      const email = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+      if (state.authMode === 'login') {
+        loginWithCredentials(email, password);
+      } else {
+        const username = document.getElementById('auth-username').value;
+        const bio = document.getElementById('auth-bio').value;
+        registerUser(username, email, password, bio);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

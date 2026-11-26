@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.expo/
+**/.expo/
+__pycache__/
+*.pyc
+
+# Environment & Secrets
+.env
+backend/.env
+Admin.txt
+
+# Temporary & Office Lock Files
+~$*
+*.log
+report_assets/

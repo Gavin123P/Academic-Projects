@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "SyncSphere - Algorithm Networking Platform",
+    "slug": "algorithm-networking-platform",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

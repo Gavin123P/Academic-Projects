@@ -1,0 +1,473 @@
+{
+  "users": [
+    {
+      "_id": "c8800ef71a13db5d954e4404",
+      "username": "Gavin Paul P",
+      "email": "gavin@srmist.edu.in",
+      "password": "$2a$10$L/lxiVEqBOw/c4hjlJyGa.CfY28J/H5pcUzUpClJWOuTebYl1NHyS",
+      "bio": "MCA Final Year Researcher @ SRM IST. Building AI & NLP systems to foster genuine human connection.",
+      "role": "MCA Researcher",
+      "avatarColor": "#4F46E5",
+      "topics": [
+        "AI",
+        "ML",
+        "Natural Language Processing",
+        "React Native",
+        "Node.js"
+      ],
+      "clusterTheme": "AI & Data Science",
+      "createdAt": "2026-11-05T07:13:13.475Z"
+    },
+    {
+      "_id": "d76d63a9837372fa72523398",
+      "username": "Ananya Sharma",
+      "email": "ananya.ai@srmist.edu.in",
+      "password": "$2a$10$L/lxiVEqBOw/c4hjlJyGa.CfY28J/H5pcUzUpClJWOuTebYl1NHyS",
+      "bio": "NLP Enthusiast exploring semantic similarity, transformers, and ethical Artificial Intelligence.",
+      "role": "AI Engineer",
+      "avatarColor": "#0EA5E9",
+      "topics": [
+        "Artificial Intelligence",
+        "Machine Learning",
+        "NLP",
+        "Python"
+      ],
+      "clusterTheme": "AI & Data Science",
+      "createdAt": "2026-11-05T07:13:13.477Z"
+    },
+    {
+      "_id": "5ec26cf1851beed3a4b48df3",
+      "username": "Rohith Kumar",
+      "email": "rohith@vtsenterprises.com",
+      "password": "$2a$10$L/lxiVEqBOw/c4hjlJyGa.CfY28J/H5pcUzUpClJWOuTebYl1NHyS",
+      "bio": "Full-Stack Architect passionate about scalable Node.js microservices, WebSockets, and mobile apps.",
+      "role": "Senior Mentor",
+      "avatarColor": "#10B981",
+      "topics": [
+        "React Native",
+        "Node.js",
+        "JavaScript",
+        "Cloud Computing",
+        "AI"
+      ],
+      "clusterTheme": "Software & Web Engineering",
+      "createdAt": "2026-11-05T07:13:13.479Z"
+    },
+    {
+      "_id": "e5074a2da3432d9fde72dbb6",
+      "username": "Karthik Rajan",
+      "email": "karthik.dev@gmail.com",
+      "password": "$2a$10$L/lxiVEqBOw/c4hjlJyGa.CfY28J/H5pcUzUpClJWOuTebYl1NHyS",
+      "bio": "Backend developer working with Java, Spring Boot, distributed systems, and competitive coding.",
+      "role": "Backend Developer",
+      "avatarColor": "#F59E0B",
+      "topics": [
+        "Coding",
+        "Java",
+        "Spring Boot",
+        "Cloud Computing"
+      ],
+      "clusterTheme": "Software & Web Engineering",
+      "createdAt": "2026-11-05T07:13:13.480Z"
+    },
+    {
+      "_id": "98710ebf3073aa92e9115d20",
+      "username": "Meera Nair",
+      "email": "meera.design@gmail.com",
+      "password": "$2a$10$L/lxiVEqBOw/c4hjlJyGa.CfY28J/H5pcUzUpClJWOuTebYl1NHyS",
+      "bio": "Human-centered UI/UX designer, indie photographer, and mindfulness practitioner.",
+      "role": "Product Designer",
+      "avatarColor": "#EC4899",
+      "topics": [
+        "UI/UX Design",
+        "Photography",
+        "Mindfulness",
+        "Reading"
+      ],
+      "clusterTheme": "Creative Arts & Design",
+      "createdAt": "2026-11-05T07:13:13.482Z"
+    },
+    {
+      "_id": "dcb49da8b378940ee78ba092",
+      "username": "Vikram Aditya",
+      "email": "vikram.ds@gmail.com",
+      "password": "$2a$10$L/lxiVEqBOw/c4hjlJyGa.CfY28J/H5pcUzUpClJWOuTebYl1NHyS",
+      "bio": "Data scientist interested in Deep Learning, Chess strategy, and weekend hiking trails.",
+      "role": "Data Scientist",
+      "avatarColor": "#8B5CF6",
+      "topics": [
+        "Artificial Intelligence",
+        "Data Science",
+        "Chess",
+        "Hiking"
+      ],
+      "clusterTheme": "AI & Data Science",
+      "createdAt": "2026-11-05T07:13:13.483Z"
+    }
+  ],
+  "topics": [
+    {
+      "_id": "5ee8da748884fd317636de3d",
+      "user_id": null,
+      "topic_name": "Artificial Intelligence",
+      "category": "AI & Data Science",
+      "topic_list": [
+        "AI",
+        "Artificial Intelligence",
+        "Neural Networks"
+      ],
+      "createdAt": "2026-11-05T07:13:13.484Z"
+    },
+    {
+      "_id": "18b8a00720a36933a8ddaa8a",
+      "user_id": null,
+      "topic_name": "Machine Learning",
+      "category": "AI & Data Science",
+      "topic_list": [
+        "ML",
+        "Machine Learning",
+        "Scikit-Learn"
+      ],
+      "createdAt": "2026-11-05T07:13:13.484Z"
+    },
+    {
+      "_id": "6b5fc8b3a3c54062d5e1375e",
+      "user_id": null,
+      "topic_name": "Natural Language Processing",
+      "category": "AI & Data Science",
+      "topic_list": [
+        "NLP",
+        "Natural Language Processing",
+        "Text Mining"
+      ],
+      "createdAt": "2026-11-05T07:13:13.485Z"
+    },
+    {
+      "_id": "d49dae1e2b274575635fd469",
+      "user_id": null,
+      "topic_name": "Data Science",
+      "category": "AI & Data Science",
+      "topic_list": [
+        "Data Science",
+        "Python",
+        "Analytics"
+      ],
+      "createdAt": "2026-11-05T07:13:13.486Z"
+    },
+    {
+      "_id": "c22f54bc7331f822235a4819",
+      "user_id": null,
+      "topic_name": "React Native",
+      "category": "Software & Web Engineering",
+      "topic_list": [
+        "React Native",
+        "Mobile Development",
+        "JavaScript"
+      ],
+      "createdAt": "2026-11-05T07:13:13.487Z"
+    },
+    {
+      "_id": "9e24fbefb6e1284d5deadb5b",
+      "user_id": null,
+      "topic_name": "Node.js & Express",
+      "category": "Software & Web Engineering",
+      "topic_list": [
+        "Node.js",
+        "Express.js",
+        "WebSockets"
+      ],
+      "createdAt": "2026-11-05T07:13:13.487Z"
+    },
+    {
+      "_id": "900c66d5ed2ca4cab131346a",
+      "user_id": null,
+      "topic_name": "Java & Spring Boot",
+      "category": "Software & Web Engineering",
+      "topic_list": [
+        "Java",
+        "Spring Boot",
+        "Coding"
+      ],
+      "createdAt": "2026-11-05T07:13:13.488Z"
+    },
+    {
+      "_id": "71575b147974e8dffab1f122",
+      "user_id": null,
+      "topic_name": "Cloud Computing",
+      "category": "Software & Web Engineering",
+      "topic_list": [
+        "Cloud Computing",
+        "AWS",
+        "DevOps"
+      ],
+      "createdAt": "2026-11-05T07:13:13.490Z"
+    },
+    {
+      "_id": "53f39827304d472c2db99d16",
+      "user_id": null,
+      "topic_name": "UI/UX Design",
+      "category": "Creative Arts & Design",
+      "topic_list": [
+        "UI",
+        "UX",
+        "Design Systems"
+      ],
+      "createdAt": "2026-11-05T07:13:13.491Z"
+    },
+    {
+      "_id": "1cf2e0909f3a68192a86984c",
+      "user_id": null,
+      "topic_name": "Photography & Visual Arts",
+      "category": "Creative Arts & Design",
+      "topic_list": [
+        "Photography",
+        "Visual Storytelling",
+        "Art"
+      ],
+      "createdAt": "2026-11-05T07:13:13.491Z"
+    },
+    {
+      "_id": "98cc0a50695d1bf6cd1039ee",
+      "user_id": null,
+      "topic_name": "Creative Writing & Books",
+      "category": "Creative Arts & Design",
+      "topic_list": [
+        "Reading",
+        "Creative Writing",
+        "Literature"
+      ],
+      "createdAt": "2026-11-05T07:13:13.492Z"
+    },
+    {
+      "_id": "3897c59e01d009379c775fcd",
+      "user_id": null,
+      "topic_name": "Mindfulness & Meditation",
+      "category": "Wellness & Outdoors",
+      "topic_list": [
+        "Mindfulness",
+        "Meditation",
+        "Mental Health"
+      ],
+      "createdAt": "2026-11-05T07:13:13.492Z"
+    },
+    {
+      "_id": "95aadcf2a7272527cfa31389",
+      "user_id": null,
+      "topic_name": "Hiking & Nature",
+      "category": "Wellness & Outdoors",
+      "topic_list": [
+        "Hiking",
+        "Nature",
+        "Travel"
+      ],
+      "createdAt": "2026-11-05T07:13:13.493Z"
+    },
+    {
+      "_id": "1921c3d6637e3f104af1d473",
+      "user_id": null,
+      "topic_name": "Chess & Strategy Games",
+      "category": "Gaming & Sci-Fi",
+      "topic_list": [
+        "Chess",
+        "Board Games",
+        "Sci-Fi"
+      ],
+      "createdAt": "2026-11-05T07:13:13.493Z"
+    }
+  ],
+  "matches": [
+    {
+      "_id": "e724a4e1398ed9ab02f143c5",
+      "user1_id": "c8800ef71a13db5d954e4404",
+      "user2_id": "d76d63a9837372fa72523398",
+      "similarityScore": 0.6253,
+      "score": 0.6253,
+      "sharedTopics": [
+        "ai",
+        "artificial",
+        "intelligence",
+        "language",
+        "machine",
+        "ml",
+        "natural",
+        "nlp",
+        "processing"
+      ],
+      "clusterTheme": "AI & Data Science",
+      "createdAt": "2026-11-05T07:18:12.607Z"
+    },
+    {
+      "_id": "192a6e4d4c4b481f64d93c36",
+      "user1_id": "c8800ef71a13db5d954e4404",
+      "user2_id": "5ec26cf1851beed3a4b48df3",
+      "similarityScore": 0.4811,
+      "score": 0.4811,
+      "sharedTopics": [
+        "ai",
+        "artificial",
+        "intelligence",
+        "js",
+        "mobile",
+        "native",
+        "node",
+        "react"
+      ],
+      "clusterTheme": "Software & Web Engineering",
+      "createdAt": "2026-11-05T07:18:12.613Z"
+    },
+    {
+      "_id": "3da1071913b8e11942778e2e",
+      "user1_id": "c8800ef71a13db5d954e4404",
+      "user2_id": "e5074a2da3432d9fde72dbb6",
+      "similarityScore": 0,
+      "score": 0,
+      "sharedTopics": [],
+      "clusterTheme": "Software & Web Engineering",
+      "createdAt": "2026-11-05T07:18:12.620Z"
+    },
+    {
+      "_id": "1edb959def0cdc6af8a7e88d",
+      "user1_id": "98710ebf3073aa92e9115d20",
+      "user2_id": "c8800ef71a13db5d954e4404",
+      "similarityScore": 0,
+      "score": 0,
+      "sharedTopics": [],
+      "clusterTheme": "AI & Data Science",
+      "createdAt": "2026-11-05T07:18:27.361Z"
+    },
+    {
+      "_id": "bece0dcbaa2b63925df072bd",
+      "user1_id": "c8800ef71a13db5d954e4404",
+      "user2_id": "dcb49da8b378940ee78ba092",
+      "similarityScore": 0.1681,
+      "score": 0.1681,
+      "sharedTopics": [
+        "ai",
+        "artificial",
+        "intelligence"
+      ],
+      "clusterTheme": "AI & Data Science",
+      "createdAt": "2026-11-05T07:18:12.628Z"
+    },
+    {
+      "_id": "1bf40dab76b5f6b951543282",
+      "user1_id": "d76d63a9837372fa72523398",
+      "user2_id": "5ec26cf1851beed3a4b48df3",
+      "similarityScore": 0.1687,
+      "score": 0.1687,
+      "sharedTopics": [
+        "ai",
+        "artificial",
+        "intelligence"
+      ],
+      "clusterTheme": "Software & Web Engineering",
+      "createdAt": "2026-11-05T07:17:15.656Z"
+    },
+    {
+      "_id": "284fed3e378834fc70d57d99",
+      "user1_id": "d76d63a9837372fa72523398",
+      "user2_id": "e5074a2da3432d9fde72dbb6",
+      "similarityScore": 0,
+      "score": 0,
+      "sharedTopics": [],
+      "clusterTheme": "Software & Web Engineering",
+      "createdAt": "2026-11-05T07:17:15.660Z"
+    },
+    {
+      "_id": "30bb85bde7550c63cc1c2bfd",
+      "user1_id": "98710ebf3073aa92e9115d20",
+      "user2_id": "d76d63a9837372fa72523398",
+      "similarityScore": 0,
+      "score": 0,
+      "sharedTopics": [],
+      "clusterTheme": "AI & Data Science",
+      "createdAt": "2026-11-05T07:18:27.364Z"
+    },
+    {
+      "_id": "3c509cb1b2d36c70e4ead65d",
+      "user1_id": "d76d63a9837372fa72523398",
+      "user2_id": "dcb49da8b378940ee78ba092",
+      "similarityScore": 0.2038,
+      "score": 0.2038,
+      "sharedTopics": [
+        "ai",
+        "artificial",
+        "intelligence"
+      ],
+      "clusterTheme": "AI & Data Science",
+      "createdAt": "2026-11-05T07:17:15.667Z"
+    },
+    {
+      "_id": "95f646538297d8c64197b4f5",
+      "user1_id": "98710ebf3073aa92e9115d20",
+      "user2_id": "5ec26cf1851beed3a4b48df3",
+      "similarityScore": 0,
+      "score": 0,
+      "sharedTopics": [],
+      "clusterTheme": "Software & Web Engineering",
+      "createdAt": "2026-11-05T07:18:27.368Z"
+    },
+    {
+      "_id": "3ccc569f3ff5a4143bc43e5b",
+      "user1_id": "98710ebf3073aa92e9115d20",
+      "user2_id": "e5074a2da3432d9fde72dbb6",
+      "similarityScore": 0,
+      "score": 0,
+      "sharedTopics": [],
+      "clusterTheme": "Software & Web Engineering",
+      "createdAt": "2026-11-05T07:18:27.371Z"
+    },
+    {
+      "_id": "6b7105c9eeed51bff5f389d1",
+      "user1_id": "98710ebf3073aa92e9115d20",
+      "user2_id": "dcb49da8b378940ee78ba092",
+      "similarityScore": 0,
+      "score": 0,
+      "sharedTopics": [],
+      "clusterTheme": "AI & Data Science",
+      "createdAt": "2026-11-05T07:18:27.379Z"
+    }
+  ],
+  "messages": [
+    {
+      "_id": "21acdf4ac9c50895d20ea2f3",
+      "match_id": "c8800ef71a13db5d954e4404_d76d63a9837372fa72523398",
+      "senderId": "d76d63a9837372fa72523398",
+      "senderName": "Ananya Sharma",
+      "receiverId": "c8800ef71a13db5d954e4404",
+      "content": "Hi Gavin! Our profiles matched with over 85% semantic similarity on AI, ML, and NLP!",
+      "message": "Hi Gavin! Our profiles matched with over 85% semantic similarity on AI, ML, and NLP!",
+      "timestamp": "2026-11-05T07:07:13.560Z"
+    },
+    {
+      "_id": "625b58c9e3bd30afab2fb93d",
+      "match_id": "c8800ef71a13db5d954e4404_d76d63a9837372fa72523398",
+      "senderId": "c8800ef71a13db5d954e4404",
+      "senderName": "Gavin Paul P",
+      "receiverId": "d76d63a9837372fa72523398",
+      "content": "Hey Ananya! Awesome to connect—the TF-IDF + Cosine Similarity engine matched my \"AI, ML\" with your \"Artificial Intelligence, Machine Learning\" seamlessly!",
+      "message": "Hey Ananya! Awesome to connect—the TF-IDF + Cosine Similarity engine matched my \"AI, ML\" with your \"Artificial Intelligence, Machine Learning\" seamlessly!",
+      "timestamp": "2026-11-05T07:10:13.562Z"
+    },
+    {
+      "_id": "bddb9a8b2c924a06d83de046",
+      "match_id": "c8800ef71a13db5d954e4404_d76d63a9837372fa72523398",
+      "senderId": "c8800ef71a13db5d954e4404",
+      "senderName": "Gavin Paul P",
+      "receiverId": "d76d63a9837372fa72523398",
+      "content": "Hello",
+      "message": "Hello",
+      "timestamp": "2026-11-05T07:17:04.292Z"
+    },
+    {
+      "_id": "6fc581c4a8c4dbe38fea1342",
+      "match_id": "c8800ef71a13db5d954e4404_d76d63a9837372fa72523398",
+      "senderId": "d76d63a9837372fa72523398",
+      "senderName": "Ananya Sharma",
+      "receiverId": "c8800ef71a13db5d954e4404",
+      "content": "It's nice to meet you.",
+      "message": "It's nice to meet you.",
+      "timestamp": "2026-11-05T07:17:31.530Z"
+    }
+  ]
+}
